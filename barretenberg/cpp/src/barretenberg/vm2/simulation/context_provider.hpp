@@ -51,6 +51,7 @@ class ContextProvider : public ContextProviderInterface {
                                                             AztecAddress msg_sender,
                                                             std::span<const FF> calldata,
                                                             bool is_static) override;
+
     uint32_t get_next_context_id() const override;
 
   private:

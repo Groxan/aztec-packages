@@ -26,6 +26,7 @@
 #include "relations/scalar_mul.hpp"
 #include "relations/sha256.hpp"
 #include "relations/to_radix.hpp"
+#include "relations/tx.hpp"
 #include "relations/update_check.hpp"
 
 // Lookup and permutation relations
@@ -46,16 +47,18 @@
 #include "relations/lookups_scalar_mul.hpp"
 #include "relations/lookups_sha256.hpp"
 #include "relations/lookups_to_radix.hpp"
+#include "relations/lookups_tx.hpp"
 #include "relations/lookups_update_check.hpp"
+#include "relations/perms_tx.hpp"
 
 namespace bb::avm2 {
 
 struct AvmFlavorVariables {
-    static constexpr size_t NUM_PRECOMPUTED_ENTITIES = 71;
-    static constexpr size_t NUM_WITNESS_ENTITIES = 2120;
-    static constexpr size_t NUM_SHIFTED_ENTITIES = 146;
+    static constexpr size_t NUM_PRECOMPUTED_ENTITIES = 87;
+    static constexpr size_t NUM_WITNESS_ENTITIES = 2178;
+    static constexpr size_t NUM_SHIFTED_ENTITIES = 149;
     static constexpr size_t NUM_WIRES = NUM_WITNESS_ENTITIES + NUM_PRECOMPUTED_ENTITIES;
-    static constexpr size_t NUM_ALL_ENTITIES = 2337;
+    static constexpr size_t NUM_ALL_ENTITIES = 2414;
 
     // Need to be templated for recursive verifier
     template <typename FF_>
@@ -85,6 +88,7 @@ struct AvmFlavorVariables {
         avm2::scalar_mul<FF_>,
         avm2::sha256<FF_>,
         avm2::to_radix<FF_>,
+        avm2::tx<FF_>,
         avm2::update_check<FF_>>;
 
     // Need to be templated for recursive verifier
@@ -167,13 +171,21 @@ struct AvmFlavorVariables {
         lookup_to_radix_limb_less_than_radix_range_relation<FF_>,
         lookup_to_radix_limb_p_diff_range_relation<FF_>,
         lookup_to_radix_limb_range_relation<FF_>,
+        lookup_tx_lookup_get_phase_table_relation<FF_>,
+        lookup_tx_lookup_get_tree_insert_value_relation<FF_>,
+        lookup_tx_lookup_jump_on_revert_relation<FF_>,
         lookup_update_check_block_of_change_cmp_range_relation<FF_>,
         lookup_update_check_shared_mutable_leaf_slot_poseidon2_relation<FF_>,
         lookup_update_check_shared_mutable_slot_poseidon2_relation<FF_>,
         lookup_update_check_update_hash_poseidon2_relation<FF_>,
         lookup_update_check_update_hash_public_data_read_relation<FF_>,
         lookup_update_check_update_hi_metadata_range_relation<FF_>,
-        lookup_update_check_update_lo_metadata_range_relation<FF_>>;
+        lookup_update_check_update_lo_metadata_range_relation<FF_>,
+        perm_tx_lookup_dispatch_exec_relation<FF_>,
+        perm_tx_lookup_dispatch_get_revert_relation<FF_>,
+        perm_tx_lookup_l2_l1_msg_relation<FF_>,
+        perm_tx_lookup_phase_length_relation<FF_>,
+        perm_tx_lookup_read_public_call_request_phase_relation<FF_>>;
 };
 
 } // namespace bb::avm2
