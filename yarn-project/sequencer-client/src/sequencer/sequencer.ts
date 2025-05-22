@@ -455,15 +455,14 @@ export class Sequencer {
 
     // NB: separating the dbs because both should update the state
     const publicProcessorDBFork = await this.worldState.fork();
-    const orchestratorDBFork = await this.worldState.fork();
 
     const previousBlockHeader =
-      (await this.l2BlockSource.getBlock(blockNumber - 1))?.header ?? orchestratorDBFork.getInitialHeader();
+      (await this.l2BlockSource.getBlock(blockNumber - 1))?.header ?? publicProcessorDBFork.getInitialHeader();
 
     try {
       const processor = this.publicProcessorFactory.create(publicProcessorDBFork, newGlobalVariables, true);
       const blockBuildingTimer = new Timer();
-      const blockBuilder = this.blockBuilderFactory.create(orchestratorDBFork);
+      const blockBuilder = this.blockBuilderFactory.create(publicProcessorDBFork);
       await blockBuilder.startNewBlock(newGlobalVariables, l1ToL2Messages, previousBlockHeader);
 
       // Deadline for processing depends on whether we're proposing a block
@@ -491,9 +490,6 @@ export class Sequencer {
         this.txPublicSetupAllowList,
       );
 
-      // TODO(#11000): Public processor should just handle processing, one tx at a time. It should be responsibility
-      // of the sequencer to update world state and iterate over txs. We should refactor this along with unifying the
-      // publicProcessorFork and orchestratorFork, to avoid doing tree insertions twice when building the block.
       const proposerLimits = {
         maxTransactions: this.maxTxsPerBlock,
         maxBlockSize: this.maxBlockSizeInBytes,
@@ -554,7 +550,6 @@ export class Sequencer {
       setTimeout(async () => {
         try {
           await publicProcessorDBFork.close();
-          await orchestratorDBFork.close();
         } catch (err) {
           // This can happen if the sequencer is stopped before we hit this timeout.
           this.log.warn(`Error closing forks for block processing`, err);

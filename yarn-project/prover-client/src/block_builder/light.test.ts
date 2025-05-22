@@ -42,23 +42,27 @@ import {
 } from '@aztec/stdlib/rollup';
 import { makeBloatedProcessedTx, makeGlobalVariables } from '@aztec/stdlib/testing';
 import { type AppendOnlyTreeSnapshot, MerkleTreeId, PublicDataTreeLeaf } from '@aztec/stdlib/trees';
-import { type ProcessedTx, toNumBlobFields } from '@aztec/stdlib/tx';
-import { GlobalVariables, PartialStateReference, StateReference } from '@aztec/stdlib/tx';
+import {
+  GlobalVariables,
+  PartialStateReference,
+  type ProcessedTx,
+  StateReference,
+  toNumBlobFields,
+} from '@aztec/stdlib/tx';
 import { VerificationKeyAsFields, VkWitnessData } from '@aztec/stdlib/vks';
-import { getTelemetryClient } from '@aztec/telemetry-client';
 import { type MerkleTreeAdminDatabase, NativeWorldStateService } from '@aztec/world-state';
 
 import { jest } from '@jest/globals';
 
 import {
-  buildBaseRollupHints,
   buildHeaderFromCircuitOutputs,
   getLastSiblingPath,
   getRootTreeSiblingPath,
   getSubtreeSiblingPath,
   getTreeSnapshot,
+  insertSideEffectsAndBuildBaseRollupHints,
 } from '../orchestrator/block-building-helpers.js';
-import { LightweightBlockBuilder } from './light.js';
+import { buildBlockWithCleanDB } from './light.js';
 
 jest.setTimeout(50_000);
 
@@ -71,7 +75,6 @@ describe('LightBlockBuilder', () => {
   let db: MerkleTreeAdminDatabase;
   let fork: MerkleTreeWriteOperations;
   let expectsFork: MerkleTreeWriteOperations;
-  let builder: LightweightBlockBuilder;
 
   let emptyProof: RecursiveProof<typeof NESTED_RECURSIVE_PROOF_LENGTH>;
   let emptyRollupProof: RecursiveProof<typeof NESTED_RECURSIVE_ROLLUP_HONK_PROOF_LENGTH>;
@@ -104,7 +107,6 @@ describe('LightBlockBuilder', () => {
     l1ToL2Messages = times(7, i => new Fr(i + 1));
     fork = await db.fork();
     expectsFork = await db.fork();
-    builder = new LightweightBlockBuilder(fork, getTelemetryClient());
   });
 
   afterEach(async () => {
@@ -214,10 +216,9 @@ describe('LightBlockBuilder', () => {
 
   // Builds the block header using the ts block builder
   const buildHeader = async (txs: ProcessedTx[], l1ToL2Messages: Fr[]) => {
-    await builder.startNewBlock(globalVariables, l1ToL2Messages);
-    await builder.addTxs(txs);
-    const { header } = await builder.setBlockCompleted();
-    return header;
+    const block = await buildBlockWithCleanDB(txs, globalVariables, l1ToL2Messages, fork);
+
+    return block.header;
   };
 
   // Builds the block header using circuit outputs
@@ -284,7 +285,7 @@ describe('LightBlockBuilder', () => {
         emptyRollupProof,
         vkData,
       );
-      const hints = await buildBaseRollupHints(tx, globalVariables, expectsFork, spongeBlobState);
+      const hints = await insertSideEffectsAndBuildBaseRollupHints(tx, globalVariables, expectsFork, spongeBlobState);
       const inputs = new PrivateBaseRollupInputs(tubeData, hints as PrivateBaseRollupHints);
       const result = await simulator.getPrivateBaseRollupProof(inputs);
       // Update `expectedTxFee` if the fee changes.
