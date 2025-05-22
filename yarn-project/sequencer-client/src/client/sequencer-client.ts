@@ -14,8 +14,6 @@ import { EthAddress } from '@aztec/foundation/eth-address';
 import { createLogger } from '@aztec/foundation/log';
 import type { DateProvider } from '@aztec/foundation/timer';
 import type { P2P } from '@aztec/p2p';
-import { LightweightBlockBuilderFactory } from '@aztec/prover-client/block-builder';
-import { PublicProcessorFactory } from '@aztec/simulator/server';
 import type { AztecAddress } from '@aztec/stdlib/aztec-address';
 import type { L2BlockSource } from '@aztec/stdlib/block';
 import type { ContractDataSource } from '@aztec/stdlib/contract';
@@ -27,6 +25,7 @@ import type { ValidatorClient } from '@aztec/validator-client';
 import type { SequencerClientConfig } from '../config.js';
 import { GlobalVariableBuilder } from '../global_variable_builder/index.js';
 import { SequencerPublisher } from '../publisher/index.js';
+import { BlockBuilder } from '../sequencer/block_builder.js';
 import { Sequencer, type SequencerConfig } from '../sequencer/index.js';
 import type { SlasherClient } from '../slasher/index.js';
 
@@ -137,8 +136,6 @@ export class SequencerClient {
       });
     const globalsBuilder = new GlobalVariableBuilder(config);
 
-    const publicProcessorFactory = new PublicProcessorFactory(contractDataSource, deps.dateProvider, telemetryClient);
-
     const ethereumSlotDuration = config.ethereumSlotDuration;
 
     const rollupManaLimit = Number(await rollupContract.getManaLimit());
@@ -165,6 +162,18 @@ export class SequencerClient {
       ethereumSlotDuration,
     };
 
+    const blockBuilder = new BlockBuilder(
+      l1ToL2MessageSource,
+      worldStateSynchronizer,
+      contractDataSource,
+      {
+        ...config,
+        ...l1Constants,
+      },
+      deps.dateProvider,
+      telemetryClient,
+    );
+
     const sequencer = new Sequencer(
       publisher,
       validatorClient,
@@ -172,11 +181,9 @@ export class SequencerClient {
       p2pClient,
       worldStateSynchronizer,
       slasherClient,
-      new LightweightBlockBuilderFactory(telemetryClient),
       l2BlockSource,
       l1ToL2MessageSource,
-      publicProcessorFactory,
-      contractDataSource,
+      blockBuilder,
       l1Constants,
       deps.dateProvider,
       { ...config, maxL1TxInclusionTimeIntoSlot, maxL2BlockGas: sequencerManaLimit },

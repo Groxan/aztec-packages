@@ -10,8 +10,7 @@ import { toArray } from '@aztec/foundation/iterable';
 import { type Logger, createLogger } from '@aztec/foundation/log';
 import { TestDateProvider, type Timer } from '@aztec/foundation/timer';
 import { type P2P, P2PClientState } from '@aztec/p2p';
-import type { BlockBuilderFactory } from '@aztec/prover-client/block-builder';
-import type { PublicProcessor, PublicProcessorFactory } from '@aztec/simulator/server';
+import type { PublicProcessor } from '@aztec/simulator/server';
 import { PublicDataWrite } from '@aztec/stdlib/avm';
 import { AztecAddress } from '@aztec/stdlib/aztec-address';
 import type { L2BlockSource } from '@aztec/stdlib/block';
@@ -30,8 +29,14 @@ import type { L1ToL2MessageSource } from '@aztec/stdlib/messaging';
 import { BlockAttestation, BlockProposal, ConsensusPayload } from '@aztec/stdlib/p2p';
 import { makeAppendOnlyTreeSnapshot, mockTxForRollup } from '@aztec/stdlib/testing';
 import type { MerkleTreeId } from '@aztec/stdlib/trees';
-import { type Tx, TxHash, makeProcessedTxFromPrivateOnlyTx } from '@aztec/stdlib/tx';
-import { BlockHeader, GlobalVariables } from '@aztec/stdlib/tx';
+import {
+  BlockHeader,
+  type FailedTx,
+  GlobalVariables,
+  type Tx,
+  TxHash,
+  makeProcessedTxFromPrivateOnlyTx,
+} from '@aztec/stdlib/tx';
 import type { ValidatorClient } from '@aztec/validator-client';
 
 import { expect } from '@jest/globals';
@@ -55,7 +60,6 @@ describe('sequencer', () => {
   let publicProcessor: MockProxy<PublicProcessor>;
   let l2BlockSource: MockProxy<L2BlockSource>;
   let l1ToL2MessageSource: MockProxy<L1ToL2MessageSource>;
-  let publicProcessorFactory: MockProxy<PublicProcessorFactory>;
 
   let initialBlockHeader: BlockHeader;
   let lastBlockNumber: number;
@@ -217,10 +221,6 @@ describe('sequencer', () => {
       return [processed, [], txs, []];
     });
 
-    publicProcessorFactory = mock<PublicProcessorFactory>({
-      create: (_a, _b) => publicProcessor,
-    });
-
     l2BlockSource = mock<L2BlockSource>({
       getBlock: mockFn().mockResolvedValue(L2Block.empty()),
       getBlockNumber: mockFn().mockResolvedValue(lastBlockNumber),
@@ -239,10 +239,6 @@ describe('sequencer', () => {
       getContractClass: mockFn().mockResolvedValue(fpcClassId),
     });
 
-    const blockBuilderFactory = mock<BlockBuilderFactory>({
-      create: () => blockBuilder,
-    });
-
     validatorClient = mock<ValidatorClient>();
     validatorClient.collectAttestations.mockImplementation(() => Promise.resolve(getAttestations()));
     validatorClient.createBlockProposal.mockImplementation(() => Promise.resolve(createBlockProposal()));
@@ -259,10 +255,8 @@ describe('sequencer', () => {
       p2p,
       worldState,
       slasherClient,
-      blockBuilderFactory,
       l2BlockSource,
       l1ToL2MessageSource,
-      publicProcessorFactory,
       contractSource,
       l1Constants,
       new TestDateProvider(),
@@ -289,7 +283,7 @@ describe('sequencer', () => {
 
   it('builds a block for proposal setting limits', async () => {
     const txs = await timesParallel(5, i => makeTx(i * 0x10000));
-    await sequencer.buildBlock(txs, globalVariables, { validateOnly: false });
+    await sequencer.buildBlockAsProposer(txs, globalVariables, { validateOnly: false });
 
     expect(publicProcessor.process).toHaveBeenCalledWith(
       txs,
@@ -305,7 +299,7 @@ describe('sequencer', () => {
 
   it('builds a block for validation ignoring limits', async () => {
     const txs = await timesParallel(5, i => makeTx(i * 0x10000));
-    await sequencer.buildBlock(txs, globalVariables, { validateOnly: true });
+    await sequencer.buildBlockAsProposer(txs, globalVariables, { validateOnly: true });
 
     expect(publicProcessor.process).toHaveBeenCalledWith(txs, { deadline: expect.any(Date) }, expect.anything());
   });
@@ -598,7 +592,7 @@ class TestSubject extends Sequencer {
     return super.doRealWork();
   }
 
-  public override buildBlock(
+  public override buildBlockAsProposer(
     pendingTxs: Iterable<Tx> | AsyncIterableIterator<Tx>,
     newGlobalVariables: GlobalVariables,
     opts?: { validateOnly?: boolean | undefined },
@@ -608,10 +602,10 @@ class TestSubject extends Sequencer {
     publicProcessorDuration: number;
     numMsgs: number;
     numTxs: number;
-    numFailedTxs: number;
     blockBuildingTimer: Timer;
     usedTxs: Tx[];
+    failedTxs: FailedTx[];
   }> {
-    return super.buildBlock(pendingTxs, newGlobalVariables, opts);
+    return super.buildBlockAsProposer(pendingTxs, newGlobalVariables, opts);
   }
 }
